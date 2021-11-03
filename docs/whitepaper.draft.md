@@ -16,7 +16,7 @@ novel functionality such as streaming via Constant Flow Agreements (CFA), highly
 scalable distributions via Instant Distribution Agreements (IDA), and modular
 function call batching via batch calls.
 
-In existing ERC20 AMMs, there are many redundant transcations, increasing
+In existing ERC20 AMMs, there are many redundant transactions, increasing
 network congestion, increased transaction fees, long wait times, and poor user
 experience.
 
@@ -35,7 +35,7 @@ including, but not limited to:
 ## 2 - Automated Market Makers
 
 Fundamentally, FluidX functions like other constant function AMMs such as
-Uniswap and Sushiswap. The codebase for FluidX is a modified version of Uniswap,
+Uniswap and Sushi. The codebase for FluidX is a modified version of Uniswap,
 optimizing for super token compatibility.
 
 The following section outlines the existing AMM functionality and drawbacks.
@@ -58,7 +58,7 @@ from the trader, which is distributed to liquidity providers based on their
 stake in the liquidity pool. However, profits are only realized once LP tokens
 are burned and the token assets withdrawn from the pair. There is also a concern
 of divergent (impermanent) loss, where the exchange rate divergence between the
-two token assets negatively imacts liquidity providers.
+two token assets negatively impacts liquidity providers.
 
 ---
 
@@ -104,7 +104,7 @@ expected price divergence to avoid the loss.
 
 ### 3.1 - Instant Distribution Agreement Rewards
 
-Liquidity providers, as mentioned above, provide liqudiity for a pair in
+Liquidity providers, as mentioned above, provide liquidity for a pair in
 exchange for LP tokens. No profits are realized until their LP tokens are
 burned, and their token assets withdrawn from the contract.
 
@@ -129,7 +129,7 @@ positions in the FluidX contract allows those most involved with the protocol to
 have direct access to the asset that influences protocol parameters, research
 and development fund allocation, among other vital decisions. Assuming the
 governance super tokens are eventually exchanged over the FluidX or any other
-exchagne, the value of the governance token creates an automated take-profit
+exchange, the value of the governance token creates an automated take-profit
 mechanism for liquidity providers, who otherwise wouldn't recognize any profits
 automatically.
 
@@ -178,7 +178,7 @@ again, by batch calls.
 | Provide Liquidity (has both) | 3                | 1               | 60              | 20             |
 | Provide Liquidity (has one)  | 5                | 1               | 100             | 20             |
 
-Note: tansaction time is assuming an average of 20 seconds for a transaction to be
+Note: transaction time is assuming an average of 20 seconds for a transaction to be
 confirmed.
 
 ---
@@ -213,7 +213,7 @@ averaging.
 ## Conclusion
 
 There are many optimizations that FluidX can implement to reduce network
-congestion, reduce redundant transactions, improve user experience, faciliate
+congestion, reduce redundant transactions, improve user experience, facilitate
 automated profit-taking mechanisms for liquidity providers, and innovate on
 token governance. The upward trend of salary streaming among DAOs presents a
 growing opportunity to create protocols with native super token support.
