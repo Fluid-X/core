@@ -46,16 +46,18 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 		host.registerApp(configWord);
 	}
 
-	function getPairStakeReward(address _pair) external view returns (uint256) {
+	function getPairStakeReward(address _pair)
+		external
+		view
+		override
+		returns (uint256)
+	{
 		return rewardAmount[pairIndex[_pair]];
 	}
 
 	// TODO onlyGovernance
-	function deployFactory(address _feeCollectorSetter)
-		external
-		returns (bool deployed)
-	{
-		factory = new FluidXFactory(_feeCollectorSetter);
+	function deployFactory() external override returns (bool deployed) {
+		factory = new FluidXFactory();
 		deployed = true;
 	}
 
@@ -95,6 +97,7 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 		external
 		returns (bool distributed)
 	{
+		require(_pair == msg.sender, "FluidX: FORBIDDEN");
 		distributed = false;
 		uint32 indexId = pairIndex[_pair];
 		uint256 reward = rewardAmount[index];
@@ -114,14 +117,34 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 		}
 	}
 
+	function stakeLiquidity(address _pair, uint256 _amount)
+		external
+		override
+		returns (bool)
+	{
+		require(
+			ISuperToken(_pair).transferFrom(msg.sender, address(this), _amount),
+			"FluidX: TRANSFER_FAILED"
+		);
+		_stakeLiquidity(msg.sender, _pair, _amount);
+	}
+
+	function removeLiquidity(address _pair, uint256 _amount) external {
+		require(
+			ISuperToken(_pair).transfer(msg.sender, _amount),
+			"FluidX: WITHDRAWAL_FAILED"
+		);
+		_removeLiquidity(msg.sender, _pair, _amount);
+	}
+
 	function _tokensReceived(
-		IERC777 token,
-		address from,
-		uint256 amount,
-		bytes calldata data
+		IERC777 _token,
+		address _from,
+		uint256 _amount,
+		bytes calldata _data
 	) internal override {
-		address pair = abi.decode(userData, (address));
-		_stakeLiquidity(from, pair, amount);
+		address pair = abi.decode(_data, (address));
+		_stakeLiquidity(_from, _pair, _amount);
 	}
 
 	function _stakeLiquidity(
@@ -137,7 +160,7 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 			indexId,
 			_staker
 		);
-        uint128 shares = units + uint128(amount / 2);
+		uint128 shares = units + uint128(amount / 2);
 		host.callAgreement(
 			ida,
 			abi.encodeWithSelector(
@@ -150,5 +173,34 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 			),
 			new bytes(0) // userData
 		);
+	}
+
+	function _removeLiquidity(
+		address _staker,
+		address _pair,
+		uint256 _amount
+	) internal returns (bool) {
+		uint32 indexId = pairIndex[_pair];
+		if (indexId > 0) {
+			(, , uint128 units, ) = ida.getSubscription(
+				_pair,
+				address(this),
+				indexId,
+				_staker
+			);
+			uint128 shares = units - uint128(amount / 2);
+			host.callAgreement(
+				ida,
+				abi.encodeWithSelector(
+					ida.updateSubscription.selector,
+					govToken,
+					indexId,
+					_staker,
+					shares,
+					new bytes(0) // ctx
+				),
+				new bytes(0) // userData
+			);
+		}
 	}
 }

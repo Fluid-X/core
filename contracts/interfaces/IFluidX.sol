@@ -6,7 +6,9 @@ interface IFluidX {
 
 	event PairRewardRemoved(address indexed pair);
 
-	function deployFactory(address _feeCollectorSetter) external;
+	function getPairStakeReward(address _pair) external view returns (uint256);
+
+	function deployFactory() external;
 
 	function setStakeReward(
 		address _superToken0,
@@ -16,7 +18,7 @@ interface IFluidX {
 
 	function distributeReward(address _pair) external returns (bool);
 
-	function stakeLiquidity(address _pair, uint256 _amount)
+	function stakeLiquidity(address _staker, address _pair, uint256 _amount)
 		external
 		returns (bool);
 
