@@ -55,7 +55,7 @@ In research, no file yet.
 SHOULD handle super token voting. SHOULD directly change FluidXParams when a
 relevant vote is successful. SHOULD include multiple vote types including, but
 not limited to, parameter tweaking and treasury allocation for research and
-development, bounties, hackathon rewards, consistent contributer salary
+development, bounties, hackathon rewards, consistent contributor salary
 streaming. CAN include vote for diversification of treasury tokens.
 
 ## FluidXRouter
