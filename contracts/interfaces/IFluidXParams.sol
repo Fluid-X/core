@@ -12,7 +12,8 @@ interface IFluidXParams {
 	event GovernanceChanged(address indexed from, address indexed to);
 
     /// @dev fee collector set, zero address if deactivated
-    /// @param feeCollector new fee collector
+    /// @param from old fee collector
+    /// @param to new fee collector
 	event FeeCollectorChanged(address indexed from, address indexed to);
 
     /// @dev liquidity fee set for all pairs
@@ -22,7 +23,7 @@ interface IFluidXParams {
     /// @dev set reward for given pair, zero amount if deactivated
     /// @param pair pair contract address
     /// @param rewardAmount amount to be distributed on swap
-	event PairRewardChanged(address indexed pair, uint32 rewardAmount);
+	event PairRewardChanged(address indexed pair, uint256 rewardAmount);
 
     // -----
     // VIEW FUNCTIONS
@@ -46,8 +47,18 @@ interface IFluidXParams {
     function getPairReward(address _pair) external view returns (uint256);
 
     // -----
-    // STATE MODIFIERS
-    // ALWAYS ONLY GOVERNANCE
+    // SPECIAL STATE MODIFIER
+    // -----
+
+    /// @dev see `./docs/contracts.md#Contracts##FluidXParams for more
+    /// IF governance is not transferred by the timestamp set on deployment
+    /// ANYONE can call this method and it will burn the governance to the zero
+    /// address. This is a centralization guard.
+    /// @return burned
+    function burnGovernance() external returns (bool);
+
+    // -----
+    // ONLY GOVERNANCE STATE MODIFIERS
     // -----
 
     /// @dev transfer governance
@@ -60,7 +71,7 @@ interface IFluidXParams {
 
     /// @dev set liquidity fee for all pairs
     /// @param _liquidityFee amount
-	function setLiquidityFee(address _liquidityFee) external returns (bool);
+	function setLiquidityFee(uint16 _liquidityFee) external returns (bool);
 
     /// @dev set reward for given pair, zero amount if deactivated
     /// @param _pair pair contract address
