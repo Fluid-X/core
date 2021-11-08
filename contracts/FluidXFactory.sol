@@ -7,6 +7,7 @@ import {IFluidXFactory} from "./interfaces/IFluidXFactory.sol";
 import {IFluidXPair} from "./interfaces/IFluidXPair.sol";
 import {FluidXPair} from "./FluidXPair.sol";
 
+// TODO refactor feeCollector to get from FluidXParams contract!
 contract FluidXFactory is IFluidXFactory {
 	address public fluidX;
 	address public feeCollector;
@@ -44,6 +45,7 @@ contract FluidXFactory is IFluidXFactory {
 		assembly {
 			pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
 		}
+		// TODO review initializePair as it might not be optimal.
 		IFluidXPair(pair).initializePair(
 			fluidX,
 			ISuperToken(superToken0),

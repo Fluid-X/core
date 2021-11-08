@@ -7,35 +7,42 @@ import {IInstantDistributionAgreementV1} from "@superfluid-finance/ethereum-cont
 import {ERC777Helper} from "@superfluid-finance/ethereum-contracts/contracts/utils/ERC777Helper.sol";
 
 import {Counter} from "./libraries/Counter.sol";
-import {IFluidX} from "./interfaces/IFluidX.sol";
+import {IFluidXRewards} from "./interfaces/IFluidXRewards.sol";
 import {IFluidXPair} from "./interfaces/IFluidXPair.sol";
-import {FluidXFactory} from "./FluidXFactory.sol";
+import {IFluidXParams} from "./interfaces/IFluidXParams.sol";
+import {IFluidXFactory} from "./interfaces/IFluidXFactory.sol";
 import {ERC777Recipient} from "./util/ERC777Recipient.sol";
 
 // TODO Allow users to withdraw their super tokens from contract
-contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
+contract FluidXRewards is IFluidXRewards, ERC777Recipient, SuperAppBase {
 	using Counter for Counter.Count;
 
 	ISuperfluid private host;
 	IInstantDistributionAgreementV1 private ida;
 	ISuperToken private govToken;
+	IFluidXParams private params;
+	IFluidXFactory private factory;
+
 	Counter.Count private indexId;
-	FluidXFactory private factory;
 
 	mapping(address => uint32) pairIndex;
-	mapping(uint32 => uint256) rewardAmount;
 	mapping(uint32 => mapping(address => uint256)) stake;
 
 	constructor(
 		ISuperfluid _host,
 		IInstantDistributionAgreementV1 _ida,
-		ISuperToken _govToken
+		ISuperToken _govToken,
+		IFluidXParams _params,
+		IFluidXFactory _factory
 	) {
 		require(govToken.getHost() == _host, "FluidX: HOST_MISMATCH");
 
 		host = _host;
 		ida = _ida;
 		govToken = _govToken;
+		params = _params;
+		factory = _factory;
+
 		uint256 configWord = SuperAppDefinitions.APP_LEVEL_FINAL |
 			SuperAppDefinitions.BEFORE_AGREEMENT_CREATED_NOOP |
 			SuperAppDefinitions.AFTER_AGREEMENT_CREATED_NOOP |
@@ -46,75 +53,19 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 		host.registerApp(configWord);
 	}
 
-	function getPairStakeReward(address _pair)
-		external
-		view
-		override
-		returns (uint256)
-	{
-		return rewardAmount[pairIndex[_pair]];
+	function updatePairRewards(address _pair) external override returns (bool) {
+		return _updatePairRewards(_pair);
 	}
 
-	// TODO onlyGovernance
-	function deployFactory() external override returns (bool deployed) {
-		factory = new FluidXFactory();
-		deployed = true;
-	}
-
-	// TODO onlyGovernance
-	function setStakeRewards(
-		address _superToken0,
-		address _superToken1,
-		uint256 _amount
-	) external {
-		address pair = factory.pairs[_superToken0][_superToken1];
-		require(pair != address(0), "FluidX: PAIR_NOT_FOUND");
-		uint32 _indexId = pairIndex[pair];
-		// create if does not exist
-		if (_indexId == 0) {
-			indexId.increment(); // min indexId == 1
-			_indexId = indexId.current();
-			host.callAgreement(
-				ida,
-				abi.encodeWithSelector(
-					ida.createIndex.selector,
-					govToken,
-					_indexId,
-					new bytes(0) // ctx
-				),
-				new bytes(0) // userData
-			);
-			pairIndex[pair] = _indexId;
-		}
-		// set reward amount
-		rewardAmount[_indexId] = amount;
-		// set or removed, not both :shrug:
-		if (amount > 0) emit PairRewardSet(pair, amount);
-		else emit PairRewardRemoved(pair);
-	}
-
-	function distributeReward(address _pair)
-		external
-		returns (bool distributed)
-	{
-		require(_pair == msg.sender, "FluidX: FORBIDDEN");
-		distributed = false;
-		uint32 indexId = pairIndex[_pair];
-		uint256 reward = rewardAmount[index];
-		if (reward > 0) {
-			host.callAgreement(
-				ida,
-				abi.encodeWithSelector(
-					ida.distribute.selector,
-					govToken,
-					indexId,
-					reward,
-					new bytes(0) // ctx
-				),
-				new bytes(0) // userData
-			);
-			distributed = true;
-		}
+	function distributeReward() external returns (bool distributed) {
+		// pair contract should be msg.sender
+		// distribution only calls if governance has authorized
+		// host check should be sufficient
+		require(
+			IFluidXPair(msg.sender).getHost() == host,
+			"FluidXRewards: HOST_MISMATCH"
+		);
+		return _distributeReward(msg.sender);
 	}
 
 	function stakeLiquidity(address _pair, uint256 _amount)
@@ -124,7 +75,7 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 	{
 		require(
 			ISuperToken(_pair).transferFrom(msg.sender, address(this), _amount),
-			"FluidX: TRANSFER_FAILED"
+			"FluidX: TRANSFER_FROM"
 		);
 		_stakeLiquidity(msg.sender, _pair, _amount);
 	}
@@ -132,7 +83,7 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 	function removeLiquidity(address _pair, uint256 _amount) external {
 		require(
 			ISuperToken(_pair).transfer(msg.sender, _amount),
-			"FluidX: WITHDRAWAL_FAILED"
+			"FluidX: WITHDRAWAL"
 		);
 		_removeLiquidity(msg.sender, _pair, _amount);
 	}
@@ -145,6 +96,51 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 	) internal override {
 		address pair = abi.decode(_data, (address));
 		_stakeLiquidity(_from, _pair, _amount);
+	}
+
+	function _updatePairRewards(address _pair) internal returns (bool updated) {
+		uint256 pairReward = params.getPairReward(_pair);
+		bool exists = pairIndex[pair] > 0;
+		if (!exists) {
+			indexId.increment();
+			uint32 pairIndexId = indexId.current();
+			host.callAgreement(
+				ida,
+				abi.encodeWithSelector(
+					ida.createIndex.selector,
+					govToken,
+					pairIndexId,
+					new bytes(0) // ctx
+				),
+				new bytes(0) // userData
+			);
+			pairIndex[_pair] = pairReward;
+			emit PairRewardsUpdated(_pair, pairReward);
+			updated = true;
+		}
+	}
+
+	function _distributeReward(address _pair)
+		internal
+		returns (bool distributed)
+	{
+		distributed = false;
+		uint256 pairReward = params.getPairReward(_pair);
+		if (pairReward > 0) {
+			host.callAgreement(
+				ida,
+				abi.encodeWithSelector(
+					ida.distribute.selector,
+					govToken,
+					pairIndex[_pair],
+					pairReward,
+					new bytes(0) // ctx
+				),
+				new bytes(0) // userData
+			);
+			emit PairRewardDistributed(_pair, pairReward);
+			distributed = true;
+		}
 	}
 
 	function _stakeLiquidity(
@@ -173,6 +169,7 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 			),
 			new bytes(0) // userData
 		);
+		emit LiquidityStaked(_staker, _pair, _amount);
 	}
 
 	function _removeLiquidity(
@@ -182,25 +179,33 @@ contract FluidX is IFluidX, ERC777Recipient, SuperAppBase {
 	) internal returns (bool) {
 		uint32 indexId = pairIndex[_pair];
 		if (indexId > 0) {
-			(, , uint128 units, ) = ida.getSubscription(
+			(bool exists, , uint128 units, ) = ida.getSubscription(
 				_pair,
 				address(this),
 				indexId,
 				_staker
 			);
-			uint128 shares = units - uint128(amount / 2);
-			host.callAgreement(
-				ida,
-				abi.encodeWithSelector(
-					ida.updateSubscription.selector,
-					govToken,
-					indexId,
-					_staker,
-					shares,
-					new bytes(0) // ctx
-				),
-				new bytes(0) // userData
-			);
+			// this `if` is critical. If this reverts, so does the transfer call
+			// meaning if someone manages to send funds to the contract without
+			// the subscription being created, their funds will be lost.
+			if (exists) {
+				uint128 shares = units - uint128(amount / 2);
+				host.callAgreement(
+					ida,
+					abi.encodeWithSelector(
+						ida.updateSubscription.selector,
+						govToken,
+						indexId,
+						_staker,
+						shares,
+						new bytes(0) // ctx
+					),
+					new bytes(0) // userData
+				);
+				// only emit if exists, because if it does not exist, it's not
+				// updating the 'stake' and is probably an emergency withdrawal
+				emit LiquidityRemoved(_staker, _pair, _amount);
+			}
 		}
 	}
 }
